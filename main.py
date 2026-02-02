@@ -1,28 +1,28 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field, validator # Añadimos validator
-import mlflow.sklearn
+from pydantic import BaseModel, Field, validator
 import pandas as pd
 import joblib
 import numpy as np
+import os
 
 app = FastAPI(title="API Mercatenerife - Entrega Final")
 
-# --- CARGA DEL MODELO Y COLUMNAS ---
+# --- CARGA DEL MODELO Y COLUMNAS (MODIFICADO PARA CARGA DIRECTA) ---
 try:
-    with open("run_id.txt", "r") as f:
-        run_id = f.read().strip()
-    model = mlflow.sklearn.load_model(f"runs:/{run_id}/model")
+    # Cargamos directamente desde la raíz del proyecto
+    model = joblib.load("model.pkl")
     model_columns = joblib.load("columnas.pkl")
     
     # Extraemos la lista de productos válidos para la validación
-    # Buscamos las columnas que empiezan por 'producto_nombre_'
     PRODUCTOS_VALIDOS = [
         col.replace("producto_nombre_", "") 
         for col in model_columns if col.startswith("producto_nombre_")
     ]
     STATUS = "ok"
 except Exception as e:
+    print(f"Error cargando los archivos: {e}")
     model = None
+    model_columns = None
     PRODUCTOS_VALIDOS = []
     STATUS = "ko"
 
@@ -34,7 +34,6 @@ class PredictInput(BaseModel):
     producto: str
     es_local: bool
 
-    # Validación extra: El producto DEBE existir en el modelo
     @validator('producto')
     def producto_debe_existir(cls, v):
         if v.upper() not in PRODUCTOS_VALIDOS:
@@ -43,14 +42,22 @@ class PredictInput(BaseModel):
 
 @app.get("/health")
 def health_check():
-    return {"status": STATUS, "productos_disponibles": len(PRODUCTOS_VALIDOS)}
+    return {
+        "status": STATUS, 
+        "productos_disponibles": len(PRODUCTOS_VALIDOS),
+        "archivos_encontrados": {
+            "model": os.path.exists("model.pkl"),
+            "columnas": os.path.exists("columnas.pkl")
+        }
+    }
 
 @app.post("/predict")
 def predict(data: PredictInput):
-    if not model:
-        raise HTTPException(status_code=500, detail="Modelo no cargado")
+    if not model or not model_columns:
+        raise HTTPException(status_code=500, detail="Modelo o columnas no cargados")
     
     try:
+        # Creamos DataFrame con ceros
         df_input = pd.DataFrame([np.zeros(len(model_columns))], columns=model_columns)
         
         # 1. Tiempo
@@ -59,9 +66,10 @@ def predict(data: PredictInput):
             if col.lower() in ['mes', 'month']: df_input.at[0, col] = data.mes
             if col.lower() in ['dia', 'day']: df_input.at[0, col] = data.dia
 
-        # 2. Producto (Ya validado por Pydantic, así que existe seguro)
+        # 2. Producto
         col_prod = f"producto_nombre_{data.producto}"
-        df_input.at[0, col_prod] = 1
+        if col_prod in model_columns:
+            df_input.at[0, col_prod] = 1
 
         # 3. Procedencia
         tipo = "LOCAL" if data.es_local else "IMPORTACION"
