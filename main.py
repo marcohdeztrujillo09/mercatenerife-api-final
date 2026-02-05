@@ -22,7 +22,7 @@ mlflow.set_tracking_uri("databricks")
 
 try:
     # Usamos la ruta completa del catálogo que usa tu profesor
-    model_uri = "models:/workspace.default.mercatenerife_modelo_final/1"
+    model_uri = "models:/workspace.default.mercatenerife_modelo_final/2"
     model = mlflow.sklearn.load_model(model_uri) 
     
     # Carga de columnas locales
