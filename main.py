@@ -19,7 +19,7 @@ os.environ["DATABRICKS_TOKEN"] = os.getenv("DATABRICKS_TOKEN", "").strip()
 
 try:
     # --- CAMBIO AQUÍ: Cargamos desde Databricks en lugar de local ---
-    model_uri = "models:/workspace.default.mercatenerife_modelo_final/latest"
+    model_uri = "models:/mercatenerife_modelo_final/1"
     model = mlflow.sklearn.load_model(model_uri) 
     
     # Las columnas las seguimos cargando de tu archivo pkl local
@@ -120,3 +120,4 @@ def predict(data: PredictInput):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error en el motor de predicción: {str(e)}")
     
+
