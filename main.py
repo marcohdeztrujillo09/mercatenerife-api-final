@@ -1,4 +1,3 @@
-## main.py completo con corrección de Tracking URI
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, validator
 import pandas as pd
@@ -96,16 +95,22 @@ def predict(data: PredictInput):
         if col_prod_1 in model_columns: df_input.at[0, col_prod_1] = 1
         elif col_prod_2 in model_columns: df_input.at[0, col_prod_2] = 1
 
-        tipo = "LOCAL" if data.es_local else "IMPORTACION"
-        col_proc = f"procedencia_{tipo}"
-        if col_proc in model_columns: df_input.at[0, col_proc] = 1
+        # --- CAMBIO SOLICITADO AQUÍ ---
+        if data.es_local:
+            col_proc = "procedencia_PRODUCCIÓN LOCAL"
+        else:
+            col_proc = "procedencia_IMPORTACIÓN"
+
+        if col_proc in model_columns:
+            df_input.at[0, col_proc] = 1
+        # ------------------------------
 
         prediction = model.predict(df_input[model_columns])
         
         return {
             "fecha_solicitada": fecha_usuario.strftime("%Y-%m-%d"),
             "producto": data.producto,
-            "procedencia": tipo,
+            "procedencia": "LOCAL" if data.es_local else "IMPORTACIÓN",
             "precio_estimado": round(float(prediction[0]), 2),
             "unidad": "€/kg"
         }
